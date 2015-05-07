@@ -1,0 +1,21 @@
+require 'with_attr'
+wa = WithAttr.new
+wa.what = 10
+wa.what
+
+require 'adaptor_example'
+
+a1 = AdaptorOne.new
+a2 = AdaptorTwo.new
+a3 = AdaptorThree.new
+
+a1.methods
+a1.sc_work_it
+
+a2.methods
+a2.sc_work_it
+a2.methods
+
+a3.methods
+a3.sc_work_it
+a3.methods

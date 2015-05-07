@@ -1,0 +1,297 @@
+%!TEX root = /Users/gilesb/programming/presentations/yycruby-2015-05/metaprogramming-presentation.tex
+\usepackage{etex}
+\usepackage[english]{babel}
+% or whatever
+
+\usepackage[all]{xy}
+\usepackage[latin1]{inputenc}
+% or whatever
+
+\usepackage{palatino,courier}
+\usepackage{amsfonts,amssymb}
+\usepackage[mathscr]{euscript}
+\usepackage{stmaryrd}
+\usepackage{eulervm}
+
+\usepackage{proof}
+\usepackage{amsmath}
+\usepackage{xspace}
+
+\usepackage{graphicx}
+% \usepackage{tikz}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{hyperref}
+
+\lstloadlanguages{Ruby}
+\lstset{language=Ruby}
+\lstset{% general command to set parameter(s)
+basicstyle=\footnotesize\ttfamily , % print whole listing small
+keywordstyle=\color{black}\bfseries,
+% underlined bold black keywords
+identifierstyle=\color{blue}, % nothing happens
+commentstyle=\color{gray}, % white comments
+stringstyle=\ttfamily, % typewriter type for strings
+showstringspaces=false} %
+% \usetikzlibrary{calc,arrows,positioning,shapes.geometric,fit,decorations.markings}
+%
+% \pgfdeclarelayer{edgelayer}
+% \pgfdeclarelayer{nodelayer}
+% \pgfsetlayers{edgelayer,nodelayer,main}
+%
+% \tikzset{ node distance=.1mm, inner sep=0.5mm}
+%
+% \tikzstyle{delta}=[isosceles triangle, isosceles triangle apex angle=70, draw, shape border rotate=90, minimum size=2mm]
+% \tikzstyle{eta}=[circle, draw, minimum size=2mm]
+% \tikzstyle{epsilon}=[circle, draw, fill=black!75, minimum size=2mm]
+% \tikzstyle{nabla}=[isosceles triangle, isosceles triangle apex angle=70, draw, shape border rotate=270, minimum size=2mm]
+% \tikzstyle{map}=[rectangle,draw]
+% \tikzstyle{nothing}=[rectangle,draw=white]
+
+
+\input{macrospres}
+
+\title{Metaprogramming in Ruby}
+\subtitle{Putting the FUN in conFUsionN}
+
+\author[Dr. Brett~Giles]{\protect{Dr.~Brett~Giles}}
+
+% - Use the \inst{?} command only if the authors have different
+%   affiliation.
+
+\institute[YYCRuby] % (optional, but mostly needed)
+{  YYCRuby Meetup}
+% - Use the \inst command only if there are several affiliations.
+% - Keep it simple, no one is interested in your street address.
+
+\date
+{2015-05}
+
+\subject{Metaprogramming}
+% This is only inserted into the PDF information catalog. Can be left
+% out.
+
+% Delete this, if you do not want the table of contents to pop up at
+% the beginning of each subsection:
+%\AtBeginSubsection[]
+% {
+%  \begin{frame}<beamer>{Outline}
+%    \tableofcontents[currentsection,currentsubsection]
+%  \end{frame}
+% }
+
+
+% If you wish to uncover everything in a step-wise fashion, uncomment
+% the following command:
+
+%\beamerdefaultoverlayspecification{<+->}
+
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\section{Metaprogramming: to be or to possibly be?}
+\begin{frame}\frametitle{Metaprogramming}
+  The Art and Science of programs that write programs:
+\begin{itemize}
+  \item Compilers, Lex, YACC
+  \item Macros in languages like C
+  \item Templates in C++
+  \item Interpreters that allow you to evaluate strings
+\end{itemize}
+\end{frame}
+\begin{frame}[fragile]\frametitle{In Ruby...}
+  \begin{itemize}
+    \item \lstinline*define_method, define_singleton_method*
+    \item \lstinline*method_missing*
+    \item Reflection methods (\lstinline*methods, respond_to?, send, __send__, public_send*)
+    \item The eval/exec methods (\lstinline*class_eval, instance_eval, eval*) and (\lstinline*class_exec, instance_exec, exec*)
+    \item Hook methods (\lstinline*included, prepended, extended, inherited*)
+    \item Reopening Classes (Monkeypatching!)
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Why or why not metaprogramming?}
+  Uses and goodies:
+  \begin{itemize}
+    \item Domain Specific Languages
+    \item DRY code
+    \item Nice fit for the Adaptor pattern with external libraries
+    \item Dynamic dispatch
+  \end{itemize}
+  Not so fun things:
+  \begin{itemize}
+    \item Code obfuscation
+    \item Clever code - Too many levels of indirection
+    \item Naming!
+  \end{itemize}
+
+\end{frame}
+\begin{frame}\frametitle{Where do we start?}
+  Common metaprogramming tasks:
+  \begin{itemize}
+    \item Create a class macro
+    \item Handle a variety of similarly named methods doing the ``same'' thing
+    \item Evaluate some code in the context of an object
+  \end{itemize}
+\end{frame}
+\begin{frame}[fragile]\frametitle{The object hierarchy in Ruby}
+  \begin{center}
+  \includegraphics[scale=.6]{diagrams/object-hierarchy.png}
+  \end{center}
+\end{frame}
+\begin{frame}[fragile]\frametitle{Create a class macro}
+\begin{lstlisting}
+
+Class Attr
+  def self.my_attr(attribute)
+    define_method(attribute) { instance_eval("@#{attribute}") }
+    define_method("#{attribute}=") do |value|
+      instance_eval("@#{attribute} = #{value}")
+    end
+  end
+end
+
+\end{lstlisting}
+\end{frame}
+\begin{frame}[fragile]\frametitle{Similar methods - part 1}
+\begin{lstlisting}
+class IamAnAdaptor
+  def initialize
+    @adaptee = SomeClass.new
+    @adaptee.methods.select { |m| m =~ /work.*/}.each do |m|
+      define_method "sc_#{m}" do
+        puts 'Work it!'
+        @adaptee.send(m)
+      end
+    end
+  end
+end
+\end{lstlisting}
+\end{frame}
+\begin{frame}[fragile]\frametitle{Similar methods - part 2}
+\begin{lstlisting}
+class IamAnAdaptor
+  def initialize
+    @adaptee = SomeClass.new
+  end
+
+  def method_missing(m, *args)
+    md = m.to_s.match(/sc_(work.*)/)
+    if md && @adaptee.methods.include?(md[1].to_sym)
+      puts 'Work it!'
+      @adaptee.send(md[1])
+    else
+      super
+    end
+  end
+end
+\end{lstlisting}
+\end{frame}
+\begin{frame}[fragile]\frametitle{Similar methods - part 3}
+\begin{lstlisting}
+class IamAnAdaptor
+  def initialize
+    @adaptee = SomeClass.new
+  end
+
+  def method_missing(m, *args)
+    md = m.to_s.match(/sc_(work.*)/)
+    if md && @adaptee.methods.include?(md[1].to_sym)
+      self.class.class_eval do
+        define_method m do
+          puts 'Work it!'
+          @adaptee.send(md[1])
+        end
+      end
+      self.send(m)
+    else
+      super
+    end
+  end
+end
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]\frametitle{Real world}
+  Active Record 4.2.1, associations/builder/association.rb
+\begin{lstlisting}
+  def self.define_readers(mixin, name)
+    mixin.class_eval <<-CODE, __FILE__, __LINE__ + 1
+      def #{name}(*args)
+        association(:#{name}).reader(*args)
+      end
+    CODE
+  end
+
+  def self.define_writers(mixin, name)
+    mixin.class_eval <<-CODE, __FILE__, __LINE__ + 1
+      def #{name}=(value)
+        association(:#{name}).writer(value)
+      end
+    CODE
+  end
+\end{lstlisting}
+\end{frame}
+\begin{frame}[fragile]\frametitle{Real world}
+  rspec core $3.2$, memoized\_helpers.rb
+\begin{lstlisting}[basicstyle=\scriptsize\ttfamily]
+def let(name, &block)
+  # We have to pass the block directly to `define_method` to
+  # allow it to use method constructs like `super` and `return`.
+  raise "#let or #subject called without a block" if block.nil?
+  MemoizedHelpers.module_for(self)
+    .__send__(:define_method, name, &block)
+
+  # Apply the memoization. The method has been defined in an ancestor
+  # module so we can use `super` here to get the value.
+  if block.arity == 1
+    define_method(name) { __memoized.fetch(name) { |k|
+      __memoized[k] = super(RSpec.current_example, &nil) } }
+  else
+    define_method(name) { __memoized.fetch(name) { |k|
+      __memoized[k] = super(&nil) } }
+  end
+end
+\end{lstlisting}
+\end{frame}
+\begin{frame}\frametitle{Recent blogs, more details}
+  Books:
+  \begin{itemize}
+    \item \href{https://pragprog.com/book/ruby4/programming-ruby-1-9-2-0}{Programming Ruby, Chapter 24}
+    \item \href{https://pragprog.com/book/ppmetr2/metaprogramming-ruby-2}{MetaProgramming Ruby 2}
+  \end{itemize}
+  Blogs / online:
+  \begin{itemize}
+    \item \href{http://ruby-metaprogramming.rubylearning.com/}{Ruby learning's metaprogramming}
+    \item \href{http://www.sitepoint.com/rubys-important-hook-methods/}{Sitepoint: - Hook methods (included, ...)}
+    \item \href{https://www.codeschool.com/blog/2015/04/24/7-deadly-sins-of-ruby-metaprogramming/}{CodeSchool - 7 deadly sins of metaprogramming}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Seven sins?}
+  \begin{itemize}
+    \item Using \lstinline|method_missing| as your first option
+    \item Not overriding \lstinline|respond_to_missing?|
+    \item Not handling all cases!
+    \item Using \lstinline|define_method| when it is not needed(Hmmm...)
+    \item Changing the semantics when opening classes. (e.g., redefining \lstinline|:+| to add 5 to the result)
+    \item Depending on who is using you (Depend down, not up)
+    \item Deep nesting (e.g., RSpec tests)
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Code exercise}
+  \begin{center}
+    \url{https://github.com/drogar/meta-yycruby-code}
+  \end{center}
+\end{frame}
+
+\end{document}
+
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "withnotes"
+%%% End:
